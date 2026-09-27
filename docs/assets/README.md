@@ -2,7 +2,9 @@
 
 These images were captured from the signed-in Logfire UI in Brave on 2026-09-27. They show the `rudrakshkarpe/starter-project` project and the `observatory-stream` model. Browser tabs and the address bar were cropped out. Data, charts and labels were not redrawn or altered.
 
-The GIF is a four-frame slideshow of these captures with explanatory captions, held for seven seconds per frame. It is not a continuous screen recording. Rebuild it with `uv run --no-editable python scripts/build_walkthrough.py`.
+The GIF is a 10.8-second edited walkthrough of these captures, replacing the original 28-second slideshow. Each scene moves from the full view into magnified excerpts, with colored outlines marking the relevant totals, stage timings or exception. Queue and prefill scenes place two crops of the same rows side by side, bringing the stage names and timing column together. Captions describe the selected requests; they are not aggregate measurements. The original PNGs remain unchanged. This is not a continuous screen recording.
+
+Rebuild it with `uv run --no-editable python scripts/build_walkthrough.py`. The script also writes full-resolution preview frames under the ignored `artifacts/walkthrough-preview/` directory. The GIF uses a shared color palette to reduce flicker and holds each focused view for two seconds.
 
 | Capture | What it demonstrates |
 |---|---|

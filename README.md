@@ -6,7 +6,7 @@ This is a runnable integration reference for diagnosing slow first responses and
 
 ![Logfire model overview, queue pressure, slow prefill and a streamed exception](docs/assets/logfire-walkthrough.gif)
 
-*A walkthrough assembled from actual Logfire screenshots. The included backend generates controlled workloads without model weights or a GPU. Trace export and HTTP streaming are real; token counts are fixture units. [Capture details](docs/assets/README.md).* 
+*A 10.8-second walkthrough with zoomed excerpts and highlights from actual Logfire screenshots. The included backend generates controlled workloads without model weights or a GPU. Trace export and HTTP streaming are real; token counts are fixture units. [Capture details](docs/assets/README.md).*
 
 ## What you can investigate
 
