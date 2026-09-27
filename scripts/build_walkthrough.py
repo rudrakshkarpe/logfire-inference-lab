@@ -214,7 +214,7 @@ def main():
         swatches.paste(frame.resize((640, 400)), (0, i * 400))
     palette = swatches.quantize(colors=192)
     encoded = [frame.quantize(palette=palette, dither=Image.Dither.NONE) for frame in frames]
-    destination = ASSETS / "logfire-walkthrough.gif"
+    destination = ASSETS / "logfire-walkthrough-zoom.gif"
     encoded[0].save(
         destination,
         save_all=True,

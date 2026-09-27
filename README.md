@@ -4,7 +4,7 @@
 
 This is a runnable integration reference for diagnosing slow first responses and failed streams. It connects an OpenAI-compatible serving endpoint to an asynchronous client, propagates trace context between the two processes, and uses Logfire's own AI Inference and Live views for investigation.
 
-![Logfire model overview, queue pressure, slow prefill and a streamed exception](docs/assets/logfire-walkthrough.gif)
+![Logfire model overview, queue pressure, slow prefill and a streamed exception](docs/assets/logfire-walkthrough-zoom.gif)
 
 *A 10.8-second walkthrough with zoomed excerpts and highlights from actual Logfire screenshots. The included backend generates controlled workloads without model weights or a GPU. Trace export and HTTP streaming are real; token counts are fixture units. [Capture details](docs/assets/README.md).*
 
