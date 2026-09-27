@@ -1,20 +1,13 @@
-# Logfire investigation queries
+# Logfire queries
 
-Paste a query into Logfire's SQL Workbench with a time range covering the workload.
-These files use Logfire's documented `records` schema. Verify them against your
-project before saving a custom dashboard; the integration tests do not execute
-hosted SQL.
+Paste these SQL statements into Logfire's SQL Workbench. Choose a time window that contains one complete five-scenario run. The CLI prints trace IDs to narrow subsequent investigation.
 
-- `scenario-latency.sql`: request volume, mean/max duration and failed requests.
-- `stages.sql`: queue, prefill and decode durations by scenario.
-- `requests.sql`: request-level evidence and trace IDs.
+- `scenario-latency.sql`: count, mean and maximum elapsed request time, and stream failures.
+- `stages.sql`: queue, prefill and decode elapsed time in the serving process.
+- `requests.sql`: request records with trace IDs and exception types. Returns at most 120 rows.
 
-Start with the built-in LLM Tokens and Costs (from records) and Exceptions
-dashboards. Fixture token values are workload units, not tokenizer counts.
-An unpriced model is not evidence of free inference. Do not infer GPU cost.
+All three queries were executed against hosted Logfire for the recorded run, using the Query API with an explicit 1,000-row limit and the UTC interval 2026-09-27 06:59:22 to 07:00:00. The service returned 120 request spans and six exceptions. Aggregated results are saved in `docs/evidence/verified-run.json`.
 
-For a custom dashboard, use a Table panel for each query initially. Keep server
-stage durations and client request latency in separate panels. Do not sum nested
-spans or count both SDK and pipeline spans as separate requests.
+Client and server durations overlap. Do not sum them to estimate end-to-end latency. `duration` in `records` is seconds; these queries convert it to milliseconds. The local CLI summary uses nearest-rank p95, whereas these queries report mean and maximum.
 
-Reference: https://pydantic.dev/docs/logfire/how-to-guides/write-dashboard-queries/
+Do not leave the window on all time when comparing runs. That combines repeated experiments, including earlier instrumentation versions. Pending spans are excluded using `duration IS NOT NULL`.

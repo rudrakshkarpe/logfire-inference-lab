@@ -91,3 +91,36 @@ def test_serving_rejects_unsupported_and_unbounded_requests(serving_process):
     assert httpx.post(url, json=body).status_code == 422
     body.update(observatory={}, model="unavailable")
     assert httpx.post(url, json=body).status_code == 404
+
+
+def test_one_model_call_span_covers_the_stream_and_failure(executed):
+    path, runs = executed
+    spans = [
+        json.loads(line)
+        for line in (path / "data/inference-application-spans.jsonl").read_text().splitlines()
+    ]
+    for scenario, run in runs.items():
+        model_calls = [
+            s
+            for s in spans
+            if s["trace_id"] == run["trace_id"]
+            and s["attributes"].get("gen_ai.request.model") == "observatory-stream"
+            and s["attributes"].get("logfire.span_type") != "pending_span"
+        ]
+        assert len(model_calls) == 8
+        assert all(s["name"] == "pipeline.request" for s in model_calls)
+        # Header-only instrumentation would close before the first content chunk.
+        assert all(
+            (s["end_ns"] - s["start_ns"]) / 1e9
+            > s["attributes"]["gen_ai.client.operation.time_to_first_chunk"]
+            for s in model_calls
+        )
+        missing_usage = [
+            s for s in model_calls if "gen_ai.usage.output_tokens" not in s["attributes"]
+        ]
+        assert len(missing_usage) == (2 if scenario == "interrupted-stream" else 0)
+        assert all(
+            s["attributes"]["observatory.trace_continuity"]
+            for s in model_calls
+            if s not in missing_usage
+        )
