@@ -1,4 +1,5 @@
 """OpenAI-compatible fixture service with real HTTP streaming and measured stages."""
+
 import asyncio
 import json
 import time
@@ -22,7 +23,7 @@ class WorkloadOptions(BaseModel):
     run_id: str = Field("manual", pattern=r"^[a-zA-Z0-9-]{1,40}$")
     scenario: Scenario = Scenario.baseline
     index: int = Field(0, ge=0, le=100000)
-    seed: int = Field(42, ge=0, le=2**31-1)
+    seed: int = Field(42, ge=0, le=2**31 - 1)
 
 
 class ChatRequest(BaseModel):
@@ -34,11 +35,11 @@ class ChatRequest(BaseModel):
 
 def create_serving_app(settings: Settings | None = None, *, instrument: bool = True):
     settings = settings or Settings()
+    if instrument:
+        configure(settings, service_name="inference-serving")
 
     @asynccontextmanager
     async def lifespan(app):
-        if instrument:
-            configure(settings, service_name="inference-serving")
         yield
         if instrument:
             await asyncio.to_thread(flush)
@@ -54,8 +55,17 @@ def create_serving_app(settings: Settings | None = None, *, instrument: bool = T
 
     @app.get("/v1/models")
     def models():
-        return {"object": "list", "data": [{"id": "observatory-chat", "object": "model",
-                                           "created": 0, "owned_by": "observatory"}]}
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "id": "observatory-chat",
+                    "object": "model",
+                    "created": 0,
+                    "owned_by": "observatory",
+                }
+            ],
+        }
 
     @app.post("/v1/chat/completions")
     async def completion(body: ChatRequest):
@@ -80,10 +90,15 @@ def create_serving_app(settings: Settings | None = None, *, instrument: bool = T
         request_id = f"{options.run_id}-{options.index:03d}"
 
         def event(delta=None, *, finish=None, usage=None, measurements=None):
-            payload = {"id": "chatcmpl-" + request_id, "object": "chat.completion.chunk",
-                       "created": int(time.time()), "model": body.model,
-                       "choices": [] if usage else [{"index": 0, "delta": delta or {},
-                                                      "finish_reason": finish}]}
+            payload = {
+                "id": "chatcmpl-" + request_id,
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": body.model,
+                "choices": []
+                if usage
+                else [{"index": 0, "delta": delta or {}, "finish_reason": finish}],
+            }
             if usage:
                 payload["usage"] = usage
             if measurements:
@@ -91,9 +106,11 @@ def create_serving_app(settings: Settings | None = None, *, instrument: bool = T
             return "data: " + json.dumps(payload) + "\n\n"
 
         async def generate():
-            attrs = {"observatory.run_id": options.run_id,
-                     "observatory.request_id": request_id,
-                     "observatory.scenario": options.scenario.value}
+            attrs = {
+                "observatory.run_id": options.run_id,
+                "observatory.request_id": request_id,
+                "observatory.scenario": options.scenario.value,
+            }
             acquired = False
             started = perf_counter()
             try:
@@ -111,22 +128,48 @@ def create_serving_app(settings: Settings | None = None, *, instrument: bool = T
                         for index in range(profile.chunks):
                             await asyncio.sleep(chunk_target / 1000)
                             yield event({"role": "assistant", "content": "evidence "})
-                            if profile.fail_every and (options.index + 1) % profile.fail_every == 0 and index == 5:
+                            if (
+                                profile.fail_every
+                                and (options.index + 1) % profile.fail_every == 0
+                                and index == 5
+                            ):
                                 serving_span.set_level("error")
                                 serving_span.set_attribute("error.type", "StreamInterrupted")
                                 logfire.error("Inference stream interrupted", **attrs)
-                                yield "data: " + json.dumps({"error": {"message": "Controlled stream interruption",
-                                    "type": "StreamInterrupted", "code": "stream_interrupted"}}) + "\n\n"
+                                yield (
+                                    "data: "
+                                    + json.dumps(
+                                        {
+                                            "error": {
+                                                "message": "Controlled stream interruption",
+                                                "type": "StreamInterrupted",
+                                                "code": "stream_interrupted",
+                                            }
+                                        }
+                                    )
+                                    + "\n\n"
+                                )
                                 return
                     decode_ms = (perf_counter() - t) * 1000
-                    measurements = {"source": "synthetic", "queue_ms": queue_ms,
-                                    "prefill_ms": prefill_ms, "decode_ms": decode_ms,
-                                    "server_trace_id": trace_id(), "token_basis": "fixture-units"}
+                    measurements = {
+                        "source": "synthetic",
+                        "queue_ms": queue_ms,
+                        "prefill_ms": prefill_ms,
+                        "decode_ms": decode_ms,
+                        "server_trace_id": trace_id(),
+                        "token_basis": "fixture-units",
+                    }
                     for name, value in measurements.items():
                         serving_span.set_attribute("observatory." + name, value)
                     yield event(finish="stop")
-                    yield event(usage={"prompt_tokens": 128, "completion_tokens": profile.chunks,
-                                       "total_tokens": 128 + profile.chunks}, measurements=measurements)
+                    yield event(
+                        usage={
+                            "prompt_tokens": 128,
+                            "completion_tokens": profile.chunks,
+                            "total_tokens": 128 + profile.chunks,
+                        },
+                        measurements=measurements,
+                    )
                     yield "data: [DONE]\n\n"
             except asyncio.CancelledError:
                 logfire.info("Serving request cancelled", **attrs)
@@ -136,7 +179,10 @@ def create_serving_app(settings: Settings | None = None, *, instrument: bool = T
                     pool[0].release()
                 pool[1] -= 1
 
-        return StreamingResponse(generate(), media_type="text/event-stream",
-                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     return app

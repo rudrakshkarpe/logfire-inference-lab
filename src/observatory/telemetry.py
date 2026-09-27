@@ -1,10 +1,10 @@
 from pathlib import Path
 
 import logfire
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from observatory.capture import JsonlExporter
 from opentelemetry import trace
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
+from observatory.capture import JsonlExporter
 from observatory.settings import Settings
 
 SOURCE = {"observatory.source": "synthetic", "observatory.engine": "workload-model"}
@@ -12,7 +12,11 @@ SOURCE = {"observatory.source": "synthetic", "observatory.engine": "workload-mod
 
 def configure(settings: Settings, service_name: str = "inference-observatory"):
     token = settings.logfire_token.get_secret_value() if settings.logfire_token else None
-    processors = [SimpleSpanProcessor(JsonlExporter(Path("data") / f"{service_name}-spans.jsonl"))] if settings.observatory_capture_traces else []
+    processors = (
+        [SimpleSpanProcessor(JsonlExporter(Path("data") / f"{service_name}-spans.jsonl"))]
+        if settings.observatory_capture_traces
+        else []
+    )
     logfire.configure(
         send_to_logfire=settings.observatory_export,
         token=token or None,
