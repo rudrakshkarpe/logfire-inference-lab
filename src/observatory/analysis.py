@@ -23,9 +23,9 @@ def summary(run: Run) -> dict:
         "p50_first_chunk_ms": percentile(first, 0.5),
         "p95_first_chunk_ms": percentile(first, 0.95),
         "p95_duration_ms": percentile((item.duration_ms for item in results), 0.95),
-        "p95_queue_ms": percentile((item.queue_ms for item in results), 0.95),
-        "p95_prefill_ms": percentile((item.prefill_ms for item in results), 0.95),
-        "output_tokens": sum(item.output_tokens for item in results),
+        "p95_queue_ms": percentile((item.queue_ms for item in results if item.queue_ms is not None), 0.95),
+        "p95_prefill_ms": percentile((item.prefill_ms for item in results if item.prefill_ms is not None), 0.95),
+        "output_tokens": sum(item.output_tokens or 0 for item in results),
         "first_chunk_samples": len(first),
     }
 

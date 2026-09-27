@@ -18,7 +18,8 @@ class Metrics:
             "observatory.status": result.status,
         }
         self.duration.record(result.duration_ms / 1000, attrs)
-        self.queue.record(result.queue_ms / 1000, attrs)
+        if result.queue_ms is not None:
+            self.queue.record(result.queue_ms / 1000, attrs)
         self.requests.add(1, attrs)
         if result.first_chunk_ms is not None:
             self.first_chunk.record(result.first_chunk_ms / 1000, attrs)

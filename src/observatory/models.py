@@ -27,12 +27,13 @@ class RequestResult(BaseModel):
     status: str
     trace_id: str
     duration_ms: float
-    queue_ms: float
-    prefill_ms: float
+    queue_ms: float | None
+    prefill_ms: float | None
     first_chunk_ms: float | None
-    decode_ms: float
-    input_tokens: int
-    output_tokens: int
+    decode_ms: float | None
+    input_tokens: int | None
+    output_tokens: int | None
+    observed_chunks: int = 0
     error: str | None = None
 
 
