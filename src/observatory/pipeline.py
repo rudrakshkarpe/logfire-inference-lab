@@ -20,13 +20,13 @@ async def exercise(run: Run, store: Store, base_url: str):
     async with AsyncOpenAI(
         base_url=base_url, api_key="local-workload", max_retries=0, timeout=30
     ) as client:
-        logfire.instrument_openai(client, suppress_other_instrumentation=False)
         logfire.instrument_httpx()
 
         async def request(index: int):
             async with limiter:
                 started = perf_counter()
                 first = None
+                first_protocol_chunk = None
                 units = 0
                 usage = None
                 measurements = {}
@@ -40,11 +40,17 @@ async def exercise(run: Run, store: Store, base_url: str):
                             "observatory.run_id": run.id,
                             "observatory.scenario": run.spec.scenario.value,
                             "observatory.request_id": request_id,
+                            "gen_ai.system": "openai",
+                            "gen_ai.provider.name": "openai",
+                            "gen_ai.operation.name": "chat",
+                            "gen_ai.request.model": "observatory-stream",
+                            "gen_ai.response.model": "observatory-stream",
+                            "observatory.token_basis": "fixture-units",
                         },
                     ) as client_span:
                         current_trace = trace_id()
                         stream = await client.chat.completions.create(
-                            model="observatory-chat",
+                            model="observatory-stream",
                             messages=[
                                 {
                                     "role": "user",
@@ -64,6 +70,12 @@ async def exercise(run: Run, store: Store, base_url: str):
                         )
                         async with stream:
                             async for chunk in stream:
+                                if first_protocol_chunk is None:
+                                    first_protocol_chunk = perf_counter() - started
+                                    client_span.set_attribute(
+                                        "gen_ai.client.operation.time_to_first_chunk",
+                                        first_protocol_chunk,
+                                    )
                                 if chunk.choices and chunk.choices[0].delta.content:
                                     units += 1
                                     if first is None:
@@ -83,6 +95,11 @@ async def exercise(run: Run, store: Store, base_url: str):
                                 "Trace continuity check failed across the HTTP boundary"
                             )
                         client_span.set_attribute("observatory.trace_continuity", True)
+                        client_span.set_attribute("gen_ai.usage.input_tokens", usage.prompt_tokens)
+                        client_span.set_attribute(
+                            "gen_ai.usage.output_tokens", usage.completion_tokens
+                        )
+                        client_span.set_attribute("gen_ai.response.finish_reasons", ["stop"])
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:

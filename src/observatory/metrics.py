@@ -12,7 +12,7 @@ class Metrics:
         attrs = {
             "observatory.scenario": run.spec.scenario.value,
             "observatory.source": "synthetic",
-            "gen_ai.request.model": "observatory-chat",
+            "gen_ai.request.model": "observatory-stream",
             "observatory.status": result.status,
         }
         self.duration.record(result.duration_ms / 1000, attrs)

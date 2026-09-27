@@ -27,7 +27,7 @@ class WorkloadOptions(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    model: str = "observatory-chat"
+    model: str = "observatory-stream"
     messages: list[dict] = Field(min_length=1, max_length=20)
     stream: bool = True
     observatory: WorkloadOptions = Field(default_factory=WorkloadOptions)
@@ -59,7 +59,7 @@ def create_serving_app(settings: Settings | None = None, *, instrument: bool = T
             "object": "list",
             "data": [
                 {
-                    "id": "observatory-chat",
+                    "id": "observatory-stream",
                     "object": "model",
                     "created": 0,
                     "owned_by": "observatory",
@@ -71,7 +71,7 @@ def create_serving_app(settings: Settings | None = None, *, instrument: bool = T
     async def completion(body: ChatRequest):
         if not body.stream:
             raise HTTPException(400, "This lab exercises streaming requests; set stream=true")
-        if body.model != "observatory-chat":
+        if body.model != "observatory-stream":
             raise HTTPException(404, "Unknown fixture model")
         options = body.observatory
         profile = PROFILES[options.scenario]
