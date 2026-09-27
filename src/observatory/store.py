@@ -30,5 +30,7 @@ class Store:
 
     def list(self, limit: int = 100) -> list[Run]:
         with self.connect() as db:
-            rows = db.execute("SELECT body FROM runs ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
+            rows = db.execute(
+                "SELECT body FROM runs ORDER BY rowid DESC LIMIT ?", (limit,)
+            ).fetchall()
         return [Run.model_validate_json(row[0]) for row in rows]

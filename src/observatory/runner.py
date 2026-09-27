@@ -39,15 +39,22 @@ class Runner:
                     on_result(run, result)
 
         try:
-            with span("workload.run", **{"observatory.run_id": run.id,
-                      "observatory.scenario": run.spec.scenario.value,
-                      "observatory.requests": run.spec.requests,
-                      "observatory.concurrency": run.spec.concurrency}) as run_span:
+            with span(
+                "workload.run",
+                **{
+                    "observatory.run_id": run.id,
+                    "observatory.scenario": run.spec.scenario.value,
+                    "observatory.requests": run.spec.requests,
+                    "observatory.concurrency": run.spec.concurrency,
+                },
+            ) as run_span:
                 run.trace_id = trace_id()
                 self.store.save(run)
                 tasks = [asyncio.create_task(one(index)) for index in range(run.spec.requests)]
                 await asyncio.gather(*tasks)
-                run_span.set_attribute("observatory.errors", sum(r.status != "ok" for r in run.results))
+                run_span.set_attribute(
+                    "observatory.errors", sum(r.status != "ok" for r in run.results)
+                )
                 run.status = "completed"
         except asyncio.CancelledError:
             run.status = "cancelled"

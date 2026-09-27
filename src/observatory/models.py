@@ -1,11 +1,11 @@
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class Scenario(str, Enum):
+class Scenario(StrEnum):
     baseline = "baseline"
     queue_pressure = "queue-pressure"
     slow_prefill = "slow-prefill"
@@ -18,7 +18,7 @@ class RunSpec(BaseModel):
     scenario: Scenario = Scenario.baseline
     requests: int = Field(24, ge=1, le=120)
     concurrency: int = Field(8, ge=1, le=32)
-    seed: int = Field(42, ge=0, le=2**31-1)
+    seed: int = Field(42, ge=0, le=2**31 - 1)
 
 
 class RequestResult(BaseModel):
@@ -38,7 +38,7 @@ class RequestResult(BaseModel):
 
 class Run(BaseModel):
     id: str = Field(default_factory=lambda: uuid4().hex[:12])
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     spec: RunSpec
     status: str = "pending"
     trace_id: str = ""

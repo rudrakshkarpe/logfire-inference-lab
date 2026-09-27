@@ -21,11 +21,17 @@ def main():
     settings = Settings()
     if args.command == "serve":
         import uvicorn
+
         from observatory.app import create_app
-        uvicorn.run(create_app(settings), host=args.host or settings.observatory_host,
-                    port=settings.observatory_port)
+
+        uvicorn.run(
+            create_app(settings),
+            host=args.host or settings.observatory_host,
+            port=settings.observatory_port,
+        )
     elif args.command == "doctor":
         from observatory.doctor import diagnose
+
         checks = diagnose(settings)
         print(json.dumps(checks, indent=2))
         raise SystemExit(0 if all(c["ok"] for c in checks) else 1)
@@ -35,8 +41,13 @@ def main():
         from observatory.runner import Runner
         from observatory.store import Store
         from observatory.telemetry import configure, flush
-        spec = RunSpec(scenario=args.scenario, requests=args.requests,
-                       concurrency=args.concurrency, seed=args.seed)
+
+        spec = RunSpec(
+            scenario=args.scenario,
+            requests=args.requests,
+            concurrency=args.concurrency,
+            seed=args.seed,
+        )
         configure(settings)
         metrics = Metrics()
         runner = Runner(Store(settings.observatory_db))

@@ -36,9 +36,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/health")
     def health():
-        return {"status": "ok", "source": "synthetic", "export_enabled": settings.observatory_export,
-                "project_url": settings.observatory_project_url,
-                "active_runs": len(app.state.runner.tasks)}
+        return {
+            "status": "ok",
+            "source": "synthetic",
+            "export_enabled": settings.observatory_export,
+            "project_url": settings.observatory_project_url,
+            "active_runs": len(app.state.runner.tasks),
+        }
 
     @app.get("/api/scenarios")
     def scenarios():
@@ -71,6 +75,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"cancelled": await app.state.runner.cancel(run_id)}
 
     from observatory.streaming import add_streaming_routes
+
     add_streaming_routes(app)
 
     if STATIC.exists():
