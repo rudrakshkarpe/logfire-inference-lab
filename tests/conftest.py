@@ -14,23 +14,32 @@ def serving_process(tmp_path_factory):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    env = {**os.environ, "OBSERVATORY_EXPORT": "false", "OBSERVATORY_PORT": str(port),
-           "OBSERVATORY_SERVING_URL": f"http://127.0.0.1:{port}/v1",
-           "OBSERVATORY_CAPTURE_TRACES": "true"}
+    env = {
+        **os.environ,
+        "OBSERVATORY_EXPORT": "false",
+        "OBSERVATORY_PORT": str(port),
+        "OBSERVATORY_SERVING_URL": f"http://127.0.0.1:{port}/v1",
+        "OBSERVATORY_CAPTURE_TRACES": "true",
+    }
     with (path / "server.log").open("w") as log:
-        process = subprocess.Popen([sys.executable, "-m", "observatory.cli", "serve"],
-                                   cwd=path, env=env, stdout=log, stderr=log)
+        process = subprocess.Popen(
+            [sys.executable, "-m", "observatory.cli", "serve"],
+            cwd=path,
+            env=env,
+            stdout=log,
+            stderr=log,
+        )
         try:
             deadline = time.monotonic() + 15
             while time.monotonic() < deadline:
                 if process.poll() is not None:
                     pytest.fail((path / "server.log").read_text())
                 try:
-                    if httpx.get(f"http://127.0.0.1:{port}/health", timeout=.5).status_code == 200:
+                    if httpx.get(f"http://127.0.0.1:{port}/health", timeout=0.5).status_code == 200:
                         break
                 except httpx.HTTPError:
                     pass
-                time.sleep(.1)
+                time.sleep(0.1)
             else:
                 pytest.fail("Serving process failed to become ready")
             yield path, env, port
@@ -39,4 +48,5 @@ def serving_process(tmp_path_factory):
             try:
                 process.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                process.kill(); process.wait()
+                process.kill()
+                process.wait()

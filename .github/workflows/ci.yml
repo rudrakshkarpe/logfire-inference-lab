@@ -1,0 +1,22 @@
+name: Validate integration
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - run: uv sync --locked --no-editable
+      - run: uv run --no-editable ruff check src tests scripts
+      - run: uv run --no-editable ruff format --check src tests scripts
+      - run: uv run --no-editable pytest -q
+        env:
+          OBSERVATORY_EXPORT: 'false'

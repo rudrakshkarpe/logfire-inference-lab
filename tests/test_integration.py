@@ -12,10 +12,30 @@ from observatory.store import Store
 def executed(serving_process):
     path, env, port = serving_process
     runs = {}
-    for scenario in ["baseline", "queue-pressure", "slow-prefill", "interrupted-stream", "recovery"]:
-        result = subprocess.run([sys.executable, "-m", "observatory.cli", "run", "--scenario", scenario,
-                                 "--requests", "8"], cwd=path, env=env, text=True,
-                                capture_output=True, timeout=30)
+    for scenario in [
+        "baseline",
+        "queue-pressure",
+        "slow-prefill",
+        "interrupted-stream",
+        "recovery",
+    ]:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "observatory.cli",
+                "run",
+                "--scenario",
+                scenario,
+                "--requests",
+                "8",
+            ],
+            cwd=path,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
         assert result.returncode == 0, result.stdout + result.stderr
         runs[scenario] = json.loads(result.stdout)["run"]
     return path, runs
@@ -48,8 +68,11 @@ def test_trace_has_client_to_server_parent_edges(executed):
     spans = []
     for f in (path / "data").glob("*-spans.jsonl"):
         spans.extend(json.loads(line) for line in f.read_text().splitlines())
-    spans = [s for s in spans if s["trace_id"] == trace and
-             s["attributes"].get("logfire.span_type") != "pending_span"]
+    spans = [
+        s
+        for s in spans
+        if s["trace_id"] == trace and s["attributes"].get("logfire.span_type") != "pending_span"
+    ]
     client_ids = {s["span_id"] for s in spans if s["service"] == "inference-application"}
     server = [s for s in spans if s["service"] == "inference-serving"]
     assert len([s for s in server if s["parent_id"] in client_ids]) == 8
