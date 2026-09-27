@@ -1,0 +1,18 @@
+services:
+  serving:
+    build: .
+    ports:
+      - "127.0.0.1:8877:8877"
+    env_file: .env
+    environment:
+      OBSERVATORY_PORT: "8877"
+      OBSERVATORY_DB: /app/data/observatory.db
+    volumes:
+      - evidence:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8877/health')"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+volumes:
+  evidence:

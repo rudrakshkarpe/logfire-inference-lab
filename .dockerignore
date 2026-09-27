@@ -1,0 +1,8 @@
+.git
+.venv
+.env
+.env.*
+.logfire
+data
+artifacts
+__pycache__
