@@ -1,10 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from observatory.analysis import serialize
 from observatory.metrics import Metrics
@@ -14,9 +11,6 @@ from observatory.scenarios import catalogue
 from observatory.settings import Settings
 from observatory.store import Store
 from observatory.telemetry import configure, flush
-
-STATIC = Path(__file__).parent / "static"
-
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
@@ -77,12 +71,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from observatory.streaming import add_streaming_routes
 
     add_streaming_routes(app)
-
-    if STATIC.exists():
-        app.mount("/static", StaticFiles(directory=STATIC), name="static")
-
-        @app.get("/", include_in_schema=False)
-        def index():
-            return FileResponse(STATIC / "index.html")
 
     return app
