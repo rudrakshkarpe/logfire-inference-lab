@@ -9,7 +9,8 @@ from observatory.telemetry import span, trace_id
 
 
 class Runner:
-    def __init__(self, store: Store, max_runs: int = 2):
+    def __init__(self, store: Store, max_runs: int = 2, on_result: Callable | None = None):
+        self.on_result = on_result
         self.store = store
         self.max_runs = max_runs
         self.tasks: dict[str, asyncio.Task] = {}
@@ -18,7 +19,7 @@ class Runner:
         if len(self.tasks) >= self.max_runs:
             raise RuntimeError("Another workload is active. Wait for a slot or cancel a run.")
         self.store.save(run)
-        task = asyncio.create_task(self.execute(run))
+        task = asyncio.create_task(self.execute(run, self.on_result))
         self.tasks[run.id] = task
         task.add_done_callback(lambda _: self.tasks.pop(run.id, None))
 
