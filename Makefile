@@ -1,5 +1,5 @@
 UV = uv run --no-editable
-.PHONY: install serve doctor baseline incident demo test lint verify
+.PHONY: install serve doctor baseline incident demo test lint verify gpu-gif
 install:
 	uv sync --locked --no-editable
 serve:
@@ -19,3 +19,5 @@ lint:
 	$(UV) ruff format --check src tests scripts
 verify:
 	$(UV) python scripts/verify_traces.py $(TRACE_ID)
+gpu-gif:
+	$(UV) python scripts/build_gpu_walkthrough.py

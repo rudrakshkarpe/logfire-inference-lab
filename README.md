@@ -1,159 +1,100 @@
 # Logfire Inference Lab
 
-**Follow a streamed inference request from the application to the serving queue, prefill and decode stages in Pydantic Logfire.**
+**Trace a streamed model request from an application into the inference engine, then diagnose it in Pydantic Logfire.**
 
-This is a runnable integration reference for diagnosing slow first responses and failed streams. It connects an OpenAI-compatible serving endpoint to an asynchronous client, propagates trace context between the two processes, and uses Logfire's own AI Inference and Live views for investigation.
+This project connects an OpenAI-compatible client to a self-hosted model, carries trace context across the serving boundary, and verifies the resulting records in Logfire. The GPU capture uses **Gemma 4 12B, vLLM 0.30.0 and one H100 80GB**. A separate laptop fixture makes streaming failures and timing scenarios reproducible without a GPU. Logfire provides the investigation UI.
 
-![Logfire model overview, queue pressure, slow prefill and a streamed exception](docs/assets/logfire-walkthrough-zoom.gif)
+![Real Gemma inference in Logfire: model totals, trace links and native engine timings](docs/assets/logfire-gemma-walkthrough.gif)
 
-*A 10.8-second walkthrough with zoomed excerpts and highlights from actual Logfire screenshots. The included backend generates controlled workloads without model weights or a GPU. Trace export and HTTP streaming are real; token counts are fixture units. [Capture details](docs/assets/README.md).*
+*A 10.8-second edited walkthrough of actual Logfire screenshots, with zoomed excerpts and highlights. [Static dashboard](docs/assets/logfire-gemma-model.png) · [Image provenance](docs/assets/README.md#gemma-h100-capture). The dashboard includes 61 main requests plus two smoke requests; its one exception is deliberate. Four intentional early closures appear as successful client spans, not completed generations.*
 
-## What you can investigate
+## What the GPU run verified
 
-A slow first response can originate in admission queueing, model preparation, or the path back to the client. A successful HTTP status can still precede a failed generation. This project makes those cases reproducible and keeps their evidence in one trace.
+The main run on September 27, 2026 sent **61 requests**: 56 completed generations, one expected HTTP 400 and four intentionally closed streams. A separate hosted SQL query found every application record and **all 56 expected native engine children**, checking exact parent span IDs. Input and output token counts matched between each completed response and its engine span.
 
-- Trace an OpenAI SDK request across HTTP into an instrumented FastAPI serving process.
-- Compare queue pressure with slow prefill, then check the effect of restoring serving capacity.
-- Observe failures after content has already streamed, with missing final usage kept missing.
-- Verify parent relationships locally and read back matching records from hosted Logfire.
+The completed main requests used **53,742 input tokens** and produced **11,264 output tokens**. Original OTLP batches, request/response chunks, Prometheus snapshots, GPU samples and version information are preserved in a checksum-verified local archive. Public summaries and screenshots are included here.
 
-The stack is **Python, Pydantic, FastAPI, the OpenAI Python client, Logfire and OpenTelemetry**. There is no application frontend. The lockfile fixes the environment used for the captured run, including Logfire 5.1.1 and OpenAI 3.19.2.
+| Scenario | Requests | Client concurrency | Output limit | p95 client first content | p95 engine queue | p95 engine prefill |
+|---|---:|---:|---:|---:|---:|---:|
+| Baseline | 8 | 1 | 128 | 0.282 s | 0.053 ms | 57.48 ms |
+| Queue pressure | 32 | 16 | 256 | 25.681 s | 25.379 s | 76.48 ms |
+| Long context | 8 | 2 | 128 | 3.977 s | 0.056 ms | 3.444 s |
+| Recovery | 8 | 1 | 128 | 0.254 s | 0.058 ms | 52.72 ms |
 
-## Run it
+These are nearest-rank percentiles from a short diagnostic workload. Client timing includes SSH and network transport; queue and prefill timing come from vLLM. The engine schedules at most four sequences. Queue pressure changes both concurrency and output length, while long-context prompts contain about 6,400 tokens. This configuration uses eager execution, detailed tracing and no prefix caching. It is not a throughput benchmark.
 
-You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/getting-started/installation/). Run commands from the repository root.
+[Exact results and trace IDs](docs/evidence/gemma4-h100-run.json) · [Full validation report](docs/gpu-validation.md)
+
+## From a slow response to its cause
+
+![Native vLLM request span with queue, prefill and decode timings](docs/assets/logfire-gemma-native-queue.png)
+
+The selected request took **29.218 seconds** inside vLLM: **23.046 seconds waiting in the queue**, **53 ms in prefill**, and **6.108 seconds in decode**. Its application parent is visible in the same trace. Engine timing makes the cause of the slow first response explicit.
+
+The long-context scenario shows a different pattern: p95 prefill rises to **3.444 seconds** while queue wait remains below **0.06 ms**. Recovery returns to the baseline prompt/output sizes and client concurrency, bringing p95 first-content time back to **254 ms**.
+
+The guide covers how to read those measurements, verify ingestion, and preserve missing usage instead of estimating it. Native prefill and decode values are engine request statistics, not GPU kernel profiles.
+
+## How the real-engine integration works
+
+```text
+Application process                         vLLM serving process
+  gpu.workload
+    chat google/gemma-4-12B-it --traceparent--> llm_request
+              |                                  |
+              | OTLP/HTTP                         | OTLP/HTTP
+              v                                  v
+                   Local archive receiver
+                     |-- original protobuf + checksums
+                     `-- authenticated forwarding --> Logfire
+```
+
+The application keeps one explicit GenAI span open through stream consumption and injects W3C `traceparent` into each request. vLLM's native instrumentation extracts that context and records queue, prefill, decode and token usage. Separate service names identify the application and engine.
+
+SSH forwards carry inference traffic and engine telemetry between loopback endpoints. The archive receiver preserves each protobuf batch before forwarding it to Logfire. Credentials remain on the laptop. Hosted SQL verification checks actual records and parent links after export.
+
+This path uses Python, the OpenAI client, Logfire and OpenTelemetry with vLLM's serving layer. The separate laptop fixture adds a Pydantic/FastAPI backend. The `openai` label in Logfire identifies the compatible API convention; the captured model ran on the H100.
+
+## Run either path
+
+Start with Python 3.11 or newer and [uv](https://docs.astral.sh/uv/getting-started/installation/):
 
 ```bash
 git clone https://github.com/rudrakshkarpe/logfire-inference-lab.git
 cd logfire-inference-lab
 uv sync --locked --no-editable
-cp .env.example .env
 ```
 
-The default configuration runs locally with hosted export disabled. Start the serving process in one terminal:
+| Path | Requirements | Instructions |
+|---|---|---|
+| Real inference | Compatible GPU host, model storage, SSH and a Logfire project | [GPU capture setup](scripts/gpu/README.md#reproduce-the-gpu-capture) |
+| Laptop fixture | Local Python environment; Logfire export optional | [Laptop walkthrough](docs/laptop-lab.md) |
+| Replay saved traces | An existing OTLP archive and a chosen receiver | [Replay instructions](scripts/gpu/README.md#replay-on-another-platform) |
 
-```bash
-uv run --no-editable observatory serve
-```
+The GPU launch pins model revision `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7`, uses BF16 text-only inference and an 8,192-token context. The capture tools preserve workload inputs, streamed chunks, token usage and errors. Verification requires a matching native engine child for every completed request.
 
-In another terminal:
+Replay was tested locally across **91 batches containing 178 spans**, including startup telemetry. It preserved relationships, events, durations and attributes while shifting timestamps and assigning new trace IDs. Dash0 ingestion has not been tested. Prometheus snapshots and GPU CSV remain separate evidence; replaying traces does not rerun inference.
 
-```bash
-uv run --no-editable observatory doctor
-uv run --no-editable observatory run --scenario baseline
-uv run --no-editable python scripts/demo.py
-```
+## Scope and known limits
 
-The service binds to `127.0.0.1:8877`. The demo runs five scenarios sequentially, with 24 requests each, concurrency eight and seed 42. It writes summaries to `artifacts/`, measurements to SQLite under `data/`, and redacted span evidence to `data/*-spans.jsonl`. These generated paths are ignored by Git.
+- **Validated:** vLLM 0.30.0 with `google/gemma-4-12B-it` on one H100; Chat Completions streaming, native trace continuity and completed-request usage.
+- **Invalid request:** asking for 9,000 output tokens exceeds the configured context. The SDK raises `BadRequestError`, which the application span records. This tests rejection before generation.
+- **Early closure:** four clients close after five content chunks. Final usage stays null. No native request child was observed for these calls, so the capture does not establish complete engine cancellation tracing.
+- **Instrumentation:** this run uses explicit application spans. It does not validate automatic `logfire.instrument_openai()` streaming error handling.
+- **Other engines:** SGLang, TensorRT-LLM, multimodal input and other model/version combinations remain untested.
 
-Use `--requests`, `--concurrency` and `--seed` with `observatory run` to change a single experiment. Limits are 120 requests and concurrency 32 per run. A fixed seed reproduces workload targets, not identical timings on every machine.
+The laptop fixture separately exercises errors after streaming has begun. Its [120-request result](docs/laptop-lab.md#recorded-fixture-result) and [animated walkthrough](docs/assets/logfire-walkthrough-zoom.gif) are retained with their own provenance.
 
-### Connect both processes to Logfire
-
-For the US region, authenticate and select your own existing project:
-
-```bash
-uv run --no-editable logfire --region us auth
-uv run --no-editable logfire --region us projects use --org YOUR-ORG YOUR-PROJECT
-```
-
-Update `.env`:
-
-```dotenv
-OBSERVATORY_EXPORT=true
-LOGFIRE_BASE_URL=https://logfire-us.pydantic.dev
-OBSERVATORY_PROJECT_URL=https://logfire-us.pydantic.dev/YOUR-ORG/YOUR-PROJECT
-```
-
-The SDK reads the selected project's local credentials. Alternatively, set `LOGFIRE_TOKEN` to a project write token through your environment or ignored `.env`. Keep the token and endpoint in the same region. Restart the serving process after configuration changes, then rerun the demo. It prints a Logfire link for each run.
-
-The project URL is only used for links. It does not configure authentication or change the destination of exported data. Both processes must use the same project credentials to appear together.
-
-### Verify the integration
-
-```bash
-# Substitute a trace ID printed by the demo.
-uv run --no-editable python scripts/verify_traces.py YOUR_TRACE_ID
-```
-
-The result counts application spans, serving spans, and actual client-to-server parent links. A standard 24-request run has 24 cross-process parent links.
-
-For optional hosted verification, create a project-scoped read token using Logfire's CLI and keep the saved file ignored:
-
-```bash
-uv run --no-editable logfire --region us read-tokens create --save
-uv run --no-editable python scripts/verify_hosted.py
-```
-
-The command reads the latest `artifacts/walkthrough.json`, restricts SQL to its trace IDs, and checks request/error counts against the local results. Credentials are never printed. Allow ingestion to complete before retrying a count mismatch. It saves its response under `artifacts/hosted-verification.json`.
-
-## Recorded result
-
-The captured run sent **120 requests across five traces** to Logfire. There were **six intentional stream failures**, giving the model overview a **5% exception rate**. All three saved SQL queries were executed against the hosted records, rather than assuming a successful SDK flush meant ingestion had completed.
-
-| Scenario | Requests | Errors | p95 first content | p95 queue wait | p95 prefill |
-|---|---:|---:|---:|---:|---:|
-| Baseline | 24 | 0 | 125 ms | 0.48 ms | 61 ms |
-| Queue pressure | 24 | 0 | 1,749 ms | 1,656 ms | 79 ms |
-| Slow prefill | 24 | 0 | 768 ms | 0.57 ms | 721 ms |
-| Interrupted stream | 24 | 6 | 121 ms | 0.59 ms | 69 ms |
-| Recovery | 24 | 0 | 140 ms | 0.85 ms | 78 ms |
-
-These are nearest-rank percentiles from local elapsed measurements. Queue/prefill values for failed streams are absent, so that row's stage percentiles use only the 18 completed streams. [Exact results and hosted aggregates](docs/evidence/verified-run.json) include the trace IDs and capture window.
-
-### Queue pressure versus slow prefill
-
-![Queue-pressure trace with linked application and serving spans](docs/assets/queue-pressure.png)
-
-In the queue-pressure trace, roughly 1.6 seconds is spent waiting for admission. Prefill is still around 70–80 ms. The application sees a slow first response, but the serving spans show why. Restoring capacity from two slots to eight reduces that wait while retaining the same work targets.
-
-![Slow-prefill trace with negligible queue waits](docs/assets/slow-prefill.png)
-
-Slow prefill produces a different signature: queue waits are tiny, while preparation occupies most of the request. Client latency alone cannot distinguish these cases.
-
-### A 200 response can still fail
-
-![A streamed API error in Logfire after an HTTP 200](docs/assets/interrupted-stream.png)
-
-The interrupted-stream scenario fails every fourth request after six content chunks. Logfire shows the HTTP 200 underneath an application span carrying `openai.APIError`. Final token usage is absent on those failed requests. The visible traceback comes from consuming the stream, not opening the connection.
-
-## How the integration works
-
-```text
-Application process                  Serving process
-workload.run
-  pipeline.request
-    HTTP client POST ──traceparent──► POST /v1/chat/completions
-                                       inference.serve
-                                         queue.wait
-                                         model.prefill
-                                         model.decode
-```
-
-The GenAI span stays open until the client finishes consuming the stream. HTTPX injects trace context, FastAPI extracts it, and the serving stages execute inside the streaming generator. Each process exports to the same Logfire project under its own service name.
-
-The first version of the integration exposed a counting problem: automatic OpenAI instrumentation created separate request and streaming records in our tested SDK versions. The current implementation uses one explicit model-call span, retains HTTP transport instrumentation, and tests that its duration includes stream consumption.
-
-Read the [integration guide](docs/integration.md) for the code walkthrough, stage placement, context propagation and engine adaptation. The [telemetry contract](docs/telemetry.md) defines every timer, usage field, metric and failure boundary. [SQL examples](queries/README.md) support investigation without another UI.
-
-## Development and containers
+## Development and documentation
 
 ```bash
 make lint
 make test
-
-# Uses .env; requires a write token there if container export is enabled.
-docker compose up --build
+make gpu-gif  # Rebuild the real-engine walkthrough from its source PNGs.
 ```
 
-Use the container instead of the local serving process because both bind port 8877. The application CLI still runs on the host. The container runs as a non-root user and publishes only to loopback. Host CLI credentials are not copied into the image. See [operations and troubleshooting](docs/operations.md) for configuration, validation and credential handling.
+The local suite has 26 tests: 14 cover the fixture's client/server behavior, trace parents, failures and timing signatures; 12 cover archive integrity, forwarding responses, usage coverage and workload completeness. GPU validation additionally checks archived spans, returned usage and hosted records. See the [fixture integration guide](docs/integration.md), [telemetry contract](docs/telemetry.md) and [operations guide](docs/operations.md).
 
-The local suite has 14 tests, including subprocess client/server integration, trace-parent continuity, error semantics, and timing signatures. The Docker image was built and its health endpoint and SSE completion were exercised. [GitHub Actions passed on Python 3.11 and 3.13](https://github.com/rudrakshkarpe/logfire-inference-lab/actions/runs/36302500168), including lint, formatting and the full test suite.
-
-## Extending to a real engine
-
-The included backend is verified. vLLM, SGLang and TensorRT-LLM adapters are not implemented or tested here. An engine adapter must replace fixture controls, preserve the real engine's usage and error contract, and establish serving-side instrumentation. Simply changing the base URL is insufficient.
-
-The current evidence proves the observability integration. A hardware-backed run would add a separate validation layer for engine scheduling, tokenizer usage and GPU metrics. The [adaptation checklist](docs/integration.md#adapting-to-an-inference-engine) explains that boundary.
+A proposed upstream walkthrough is tracked in [pydantic/logfire#2489](https://github.com/pydantic/logfire/issues/2489). Local [maintainer follow-up drafts](docs/drafts/README.md) collect the verified findings and a suggested documentation scope for later review.
 
 MIT licensed.

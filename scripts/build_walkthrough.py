@@ -136,7 +136,7 @@ def mapped(rect, source, target):
     )
 
 
-def render(scene, index, progress):
+def render(scene, index, progress, scenes=SCENES, footer=None):
     screenshot = Image.open(ASSETS / f"{scene.filename}.png").convert("RGB")
     frame = Image.new("RGB", SIZE, BG)
     preview = screenshot.copy()
@@ -168,10 +168,11 @@ def render(scene, index, progress):
     draw.text((36, 18), "LOGFIRE INFERENCE LAB", font=font(16), fill=MUTED)
     draw.text((36, 51), scene.title, font=font(34), fill=TEXT)
     # A small four-step rail makes the loop's progression clear without a loading animation.
-    for i, item in enumerate(SCENES):
-        x = 36 + i * 305
+    for i, item in enumerate(scenes):
+        spacing = 1220 / len(scenes)
+        x = round(36 + i * spacing)
         color = scene.color if i == index else "#253145"
-        draw.rounded_rectangle((x, 110, x + 288, 114), radius=2, fill=color)
+        draw.rounded_rectangle((x, 110, x + spacing - 17, 114), radius=2, fill=color)
         draw.text((x, 122), f"0{i + 1}  {item.step}", font=font(14), fill=MUTED)
 
     draw.rectangle((0, 609, 1280, 800), fill=BG)
@@ -180,24 +181,25 @@ def render(scene, index, progress):
     draw.text((61, 689), scene.explanation, font=font(23), fill=TEXT)
     draw.text(
         (36, 763),
-        "ACTUAL LOGFIRE CAPTURES  /  MAGNIFIED EXCERPTS  /  CONTROLLED WORKLOAD",
+        footer or "ACTUAL LOGFIRE CAPTURES  /  MAGNIFIED EXCERPTS  /  CONTROLLED WORKLOAD",
         font=font(14),
         fill=MUTED,
     )
     return frame
 
 
-def main():
+def build(scenes, destination, preview, footer=None):
     frames, durations, focused = [], [], []
-    for i, scene in enumerate(SCENES):
-        frames.append(render(scene, i, 0))
+    for i, scene in enumerate(scenes):
+        frames.append(render(scene, i, 0, scenes, footer))
         durations.append(160)
         for step in range(1, 7):
-            frames.append(render(scene, i, step / 6))
+            frames.append(render(scene, i, step / 6, scenes, footer))
             durations.append(60)
         focused.append(frames[-1])
         durations[-1] += 2000
-        next_frame = render(SCENES[(i + 1) % len(SCENES)], (i + 1) % len(SCENES), 0)
+        next_index = (i + 1) % len(scenes)
+        next_frame = render(scenes[next_index], next_index, 0, scenes, footer)
         transition = Image.new("RGB", SIZE, BG)
         frames.extend(
             [
@@ -214,7 +216,6 @@ def main():
         swatches.paste(frame.resize((640, 400)), (0, i * 400))
     palette = swatches.quantize(colors=192)
     encoded = [frame.quantize(palette=palette, dither=Image.Dither.NONE) for frame in frames]
-    destination = ASSETS / "logfire-walkthrough-zoom.gif"
     encoded[0].save(
         destination,
         save_all=True,
@@ -224,12 +225,11 @@ def main():
         optimize=True,
         disposal=1,
     )
-    preview = Path("artifacts/walkthrough-preview")
     preview.mkdir(parents=True, exist_ok=True)
-    for scene, frame in zip(SCENES, focused):
-        frame.save(preview / f"{scene.filename}.png")
+    for i, (scene, frame) in enumerate(zip(scenes, focused)):
+        frame.save(preview / f"{i + 1:02d}-{scene.step.lower()}.png")
     print(f"{destination}: {sum(durations) / 1000:.1f}s, {destination.stat().st_size / 1e6:.2f} MB")
 
 
 if __name__ == "__main__":
-    main()
+    build(SCENES, ASSETS / "logfire-walkthrough-zoom.gif", Path("artifacts/walkthrough-preview"))

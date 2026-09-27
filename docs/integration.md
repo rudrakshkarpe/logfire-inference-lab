@@ -2,7 +2,7 @@
 
 This reference separates three responsibilities: the application that consumes a response, the service that streams it, and Logfire as the investigation interface. Python, Pydantic, FastAPI, the OpenAI Python client, and Logfire/OpenTelemetry are the integration stack. There is no frontend to deploy.
 
-The included serving backend is a deterministic workload fixture. It performs actual HTTP streaming, queue admission, asynchronous stage work, exception handling and telemetry export. Its timings are measured elapsed time. It does not load model weights, tokenize prompts or run GPU kernels. This makes the integration reproducible on a laptop while leaving engine-specific instrumentation as an explicit next step.
+The default serving backend is a deterministic workload fixture. It performs actual HTTP streaming, queue admission, asynchronous stage work, exception handling and telemetry export. Its timings are measured elapsed time. It does not load model weights, tokenize prompts or run GPU kernels. A separate [GPU integration](gpu-validation.md) now validates vLLM 0.30.0 with Gemma 4 12B on an H100, using the engine's native telemetry.
 
 ## Request and telemetry paths
 
@@ -117,7 +117,7 @@ The application/serving split and trace-context checks are engine-independent de
 | Target | Current status | Work needed before claiming support |
 |---|---|---|
 | Included serving fixture | Executed locally, in a container, and exported to Logfire | Reproduce the documented run |
-| vLLM | Not tested in this project | Use its supported client API; configure engine tracing; verify parent relationships and actual stage semantics |
+| vLLM | 0.30.0 with Gemma 4 12B on one H100, through separate GPU scripts | Repeat the recorded setup; revalidate other releases, models and configurations |
 | SGLang | Not tested in this project | Verify its streaming/usage contract and tracing support for the chosen release |
 | TensorRT-LLM | Not tested in this project | Identify the deployed serving frontend, instrument its request boundary, and map backend timing sources |
 
@@ -125,7 +125,7 @@ Changing `OBSERVATORY_SERVING_URL` alone is not a complete engine adapter. The c
 
 Application spans can measure client latency and usage returned by the server. They cannot reveal scheduler wait, KV-cache pressure or GPU execution time by themselves. Those require engine-side traces or metrics with clearly defined units and boundaries. Keep unavailable measurements absent. Do not infer them from client duration.
 
-After an engine adapter exists, repeat the protocol and trace-parent tests, run a hardware-backed workload, then replace the fixture evidence with separately identified engine evidence. The current report is an integration test, not a model benchmark.
+For each engine integration, repeat the protocol and trace-parent checks and record hardware-backed evidence separately from fixture evidence. Both reports in this repository are integration validation, not model benchmarks.
 
 ## References
 
