@@ -515,7 +515,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
-    { name = "logfire", extras = ["fastapi", "httpx", "openai"], specifier = "==5.1.1" },
+    { name = "logfire", extras = ["fastapi", "httpx"], specifier = "==5.1.1" },
     { name = "openai", specifier = ">=1.60" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "uvicorn", specifier = ">=0.30" },
