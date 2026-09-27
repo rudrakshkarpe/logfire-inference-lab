@@ -37,7 +37,7 @@ def diagnose(settings: Settings) -> list[dict]:
     ]
     try:
         response = httpx.get(
-            f"http://{settings.observatory_host}:{settings.observatory_port}/api/health", timeout=2
+            settings.observatory_serving_url.removesuffix("/v1") + "/health", timeout=2
         )
         ready = response.status_code == 200
     except httpx.HTTPError:
