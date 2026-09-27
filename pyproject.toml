@@ -3,7 +3,14 @@ name = "logfire-inference-observatory"
 version = "0.1.0"
 description = "A reproducible inference troubleshooting lab with Pydantic Logfire"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.115", "uvicorn>=0.30", "logfire>=4.0", "pydantic-settings>=2.6", "httpx>=0.27"]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "logfire[fastapi,httpx]==5.1.1",
+    "pydantic-settings>=2.6",
+    "httpx>=0.27",
+    "openai>=1.60",
+]
 
 [project.scripts]
 observatory = "observatory.cli:main"

@@ -6,17 +6,18 @@ from observatory.settings import Settings
 SOURCE = {"observatory.source": "synthetic", "observatory.engine": "workload-model"}
 
 
-def configure(settings: Settings):
+def configure(settings: Settings, service_name: str = "inference-observatory"):
     token = settings.logfire_token.get_secret_value() if settings.logfire_token else None
     logfire.configure(
         send_to_logfire=settings.observatory_export,
         token=token or None,
-        service_name="inference-observatory",
+        service_name=service_name,
         service_version="0.1.0",
         environment="lab",
         resource_attributes=SOURCE,
         console=False,
         inspect_arguments=False,
+        distributed_tracing=True,
         advanced=logfire.AdvancedOptions(base_url=settings.logfire_base_url),
     )
 
