@@ -1,4 +1,4 @@
-# Inference Observatory
+# Logfire Inference Lab
 
 **Follow a streamed inference request from the application to the serving queue, prefill and decode stages in Pydantic Logfire.**
 
@@ -24,6 +24,8 @@ The stack is **Python, Pydantic, FastAPI, the OpenAI Python client, Logfire and 
 You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/getting-started/installation/). Run commands from the repository root.
 
 ```bash
+git clone https://github.com/rudrakshkarpe/logfire-inference-lab.git
+cd logfire-inference-lab
 uv sync --locked --no-editable
 cp .env.example .env
 ```
@@ -146,7 +148,7 @@ docker compose up --build
 
 Use the container instead of the local serving process because both bind port 8877. The application CLI still runs on the host. The container runs as a non-root user and publishes only to loopback. Host CLI credentials are not copied into the image. See [operations and troubleshooting](docs/operations.md) for configuration, validation and credential handling.
 
-The local suite has 14 tests, including subprocess client/server integration, trace-parent continuity, error semantics, and timing signatures. The Docker image was built and its health endpoint and SSE completion were exercised. GitHub Actions is configured for Python 3.11 and 3.13; remote CI has not been run yet.
+The local suite has 14 tests, including subprocess client/server integration, trace-parent continuity, error semantics, and timing signatures. The Docker image was built and its health endpoint and SSE completion were exercised. [GitHub Actions passed on Python 3.11 and 3.13](https://github.com/rudrakshkarpe/logfire-inference-lab/actions/runs/36302500168), including lint, formatting and the full test suite.
 
 ## Extending to a real engine
 

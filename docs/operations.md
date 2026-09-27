@@ -81,7 +81,7 @@ The recorded validation on 2026-09-27 included:
 - Hosted SQL verification of 120 requests and six exceptions across the five recorded traces.
 - Actual Logfire UI inspection and screenshot capture.
 
-GitHub Actions has not run because the repository has not been published. The checked-in workflow defines Python 3.11 and 3.13 jobs; a configured matrix is not a claim that both remote jobs have passed.
+After publication, [GitHub Actions run 36302500168](https://github.com/rudrakshkarpe/logfire-inference-lab/actions/runs/36302500168) passed on both Python 3.11 and 3.13. Both jobs ran lint, formatting checks and the full test suite.
 
 ## Handling evidence
 
